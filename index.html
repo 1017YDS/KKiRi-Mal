@@ -34,7 +34,7 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 <h1>끼리-말 비공개 대화방 초대장</h1>
 <p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
 
-<section style="text-align:left;margin-bottom:18px">
+<section id="loginPanel" style="text-align:left;margin-bottom:18px">
 <label class="label" for="email">이메일</label>
 <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
 <label class="label" for="password">비밀번호</label>
@@ -89,6 +89,7 @@ const status = $('status');
 const list = $('list');
 const email = $('email');
 const password = $('password');
+const loginPanel = $('loginPanel');
 const authStatus = $('authStatus');
 const loginButton = $('login');
 const logoutButton = $('logout');
@@ -143,14 +144,12 @@ function render() {
 
     const content = document.createElement('div');
     const text = document.createElement('div');
-    const meta = document.createElement('div');
 
     text.className = 'txt';
     text.textContent = item.text;
-    meta.className = 'meta';
-    meta.textContent = item.date;
 
-    content.append(text, meta);
+    // 이력에는 초대 문구만 표시하고 날짜·시간은 표시하지 않습니다.
+    content.append(text);
     row.append(cb, content);
     list.append(row);
   });
@@ -175,8 +174,7 @@ function validHistory(value) {
   return Array.isArray(value)
     ? value.filter(x => x &&
         typeof x.id === 'string' &&
-        typeof x.text === 'string' &&
-        typeof x.date === 'string')
+        typeof x.text === 'string')
     : [];
 }
 
@@ -191,8 +189,8 @@ function readLocalHistory() {
 }
 
 /*
- * 공유 기록을 트랜잭션으로 수정합니다.
  * 두 계정 모두 같은 shared/history 경로를 사용합니다.
+ * 이력 데이터의 날짜 정보는 유지하되 화면에 표시하지 않습니다.
  */
 async function changeHistory(transform) {
   if (!currentUser || !historyRef) {
@@ -289,6 +287,7 @@ auth.onAuthStateChanged(user => {
   render();
 
   if (!user) {
+    loginPanel.hidden = false;
     email.disabled = false;
     password.disabled = false;
     loginButton.hidden = false;
@@ -299,6 +298,8 @@ auth.onAuthStateChanged(user => {
     return;
   }
 
+  // 로그인 후 이메일·비밀번호·로그인 버튼이 포함된 영역 전체를 숨깁니다.
+  loginPanel.hidden = true;
   email.disabled = true;
   password.disabled = true;
   loginButton.hidden = true;
@@ -319,7 +320,6 @@ auth.onAuthStateChanged(user => {
       const local = readLocalHistory();
 
       if (local.length) {
-        // 클라우드가 비어 있을 때만 기존 브라우저 기록을 이전합니다.
         refForUser.transaction(current => current === null ? local : current)
           .then(result => {
             if (!currentUser || currentUser.uid !== user.uid) return;
@@ -384,8 +384,8 @@ async function register() {
 
   await runWrite(async () => {
     const item = {
-      id: (crypto.randomUUID
-        ? crypto.randomUUID()
+      id: (window.crypto && window.crypto.randomUUID
+        ? window.crypto.randomUUID()
         : Date.now() + '-' + Math.random().toString(36).slice(2)),
       text,
       date: new Date().toLocaleString('ko-KR', {
