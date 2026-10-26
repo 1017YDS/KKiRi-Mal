@@ -22,7 +22,6 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 .item{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:11px;background:#fff;border:1.5px solid #1E293B;border-radius:6px;overflow-wrap:anywhere}
 .item input{width:17px;height:17px;margin:2px 0 0}
 .txt{font-weight:700;white-space:pre-wrap;word-break:break-word}
-.meta{margin-top:5px;font-size:11px;color:#64748B}
 .empty{padding:18px 8px;border:1.5px dashed #64748B;border-radius:6px;font-size:13px;color:#475569;text-align:center}
 .status{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;text-align:left;overflow-wrap:anywhere}
 .note{font-size:11px;line-height:1.5;color:#475569;margin:14px 0 0;text-align:left}
@@ -35,16 +34,17 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 <p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
 
 <section id="loginPanel" style="text-align:left;margin-bottom:18px">
-<label class="label" for="email">이메일</label>
-<input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
-<label class="label" for="password">비밀번호</label>
-<input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
-<div class="tools" style="margin-top:9px;margin-bottom:0">
-<button class="btn" id="login" type="button">로그인</button>
-<button class="btn" id="logout" type="button" hidden>로그아웃</button>
-</div>
-<div class="status" id="authStatus" role="status" aria-live="polite">대화 기록을 불러오려면 로그인하세요.</div>
+  <label class="label" for="email">이메일</label>
+  <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
+  <label class="label" for="password">비밀번호</label>
+  <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
+  <button class="btn" id="login" type="button" style="width:100%;margin-top:9px">로그인</button>
 </section>
+
+<div style="text-align:left;margin-bottom:18px">
+  <button class="btn" id="logout" type="button" hidden>로그아웃</button>
+  <div class="status" id="authStatus" role="status" aria-live="polite">대화 기록을 불러오려면 로그인하세요.</div>
+</div>
 
 <label class="label" for="msg">초대 문구</label>
 <input id="msg" type="text" maxlength="100" placeholder="초대하고 싶은 말을 입력하세요" autocomplete="off">
@@ -55,13 +55,13 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 
 <h2>등록 이력</h2>
 <div class="tools">
-<button class="btn" id="selectAll" type="button">전체 선택</button>
-<button class="btn" id="deleteAll" type="button">전체 삭제</button>
-<button class="btn" id="deleteSelected" type="button">선택 항목 삭제</button>
-<button class="btn" id="clear" type="button">선택 해제</button>
+  <button class="btn" id="selectAll" type="button">전체 선택</button>
+  <button class="btn" id="deleteAll" type="button">전체 삭제</button>
+  <button class="btn" id="deleteSelected" type="button">선택 항목 삭제</button>
+  <button class="btn" id="clear" type="button">선택 해제</button>
 </div>
 <div class="list" id="list"><div class="empty">아직 등록된 초대 문구가 없습니다.</div></div>
-<p class="note">※ 로그인하면 같은 계정으로 접속한 기기와 브라우저에서 등록 이력이 공유됩니다.</p>
+<p class="note">※ 로그인하면 같은 공유 기록을 사용하는 계정과 기기에서 등록 이력이 공유됩니다.</p>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -144,11 +144,10 @@ function render() {
 
     const content = document.createElement('div');
     const text = document.createElement('div');
-
     text.className = 'txt';
     text.textContent = item.text;
 
-    // 이력에는 초대 문구만 표시하고 날짜·시간은 표시하지 않습니다.
+    // 날짜와 시간은 화면에 표시하지 않습니다.
     content.append(text);
     row.append(cb, content);
     list.append(row);
@@ -188,10 +187,6 @@ function readLocalHistory() {
   }
 }
 
-/*
- * 두 계정 모두 같은 shared/history 경로를 사용합니다.
- * 이력 데이터의 날짜 정보는 유지하되 화면에 표시하지 않습니다.
- */
 async function changeHistory(transform) {
   if (!currentUser || !historyRef) {
     status.textContent = '먼저 로그인해 주세요.';
@@ -200,8 +195,7 @@ async function changeHistory(transform) {
 
   try {
     const result = await historyRef.transaction(current => {
-      const items = validHistory(current);
-      return transform(items);
+      return transform(validHistory(current));
     });
 
     if (!result.committed) {
@@ -298,15 +292,13 @@ auth.onAuthStateChanged(user => {
     return;
   }
 
-  // 로그인 후 이메일·비밀번호·로그인 버튼이 포함된 영역 전체를 숨깁니다.
+  // 로그인 입력 영역만 숨기고 로그아웃 버튼은 별도로 표시합니다.
   loginPanel.hidden = true;
-  email.disabled = true;
-  password.disabled = true;
-  loginButton.hidden = true;
   logoutButton.hidden = false;
+  logoutButton.disabled = false;
   authStatus.textContent = '로그인됨: ' + (user.email || '계정');
 
-  // 두 계정의 공유 경로를 기존대로 유지합니다.
+  // 두 계정이 함께 사용하는 공유 경로입니다.
   historyRef = db.ref('shared/history');
 
   const refForUser = historyRef;
