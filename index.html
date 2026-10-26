@@ -15,13 +15,17 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
 </style></head><body><main class="card">
 <h1>끼리-말 비공개 대화방 초대장</h1><p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
 <section id="authPanel" style="text-align:left;margin-bottom:18px">
-  <label class="label" for="email">이메일</label>
-  <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
-  <label class="label" for="password">비밀번호</label>
-  <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
-  <div class="tools" style="margin-top:9px;margin-bottom:0">
-    <button class="btn" id="login">로그인</button>
-    <button class="btn" id="logout" hidden>로그아웃</button>
+  <div id="loginFields">
+    <label class="label" for="email">이메일</label>
+    <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
+    <label class="label" for="password">비밀번호</label>
+    <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
+    <div style="margin-top:9px">
+      <button class="btn" id="login" style="width:100%">로그인</button>
+    </div>
+  </div>
+  <div id="logoutArea" hidden>
+    <button class="btn" id="logout" style="width:100%">로그아웃</button>
   </div>
   <div class="status" id="authStatus" role="status" aria-live="polite">대화 기록을 불러오려면 로그인하세요.</div>
 </section>
@@ -56,6 +60,8 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
   const email = document.getElementById('email');
   const password = document.getElementById('password');
   const authStatus = document.getElementById('authStatus');
+  const loginFields = document.getElementById('loginFields');
+  const logoutArea = document.getElementById('logoutArea');
   const loginButton = document.getElementById('login');
   const logoutButton = document.getElementById('logout');
   const registerButton = document.getElementById('register');
@@ -163,17 +169,15 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
       render();
       email.disabled = false;
       password.disabled = false;
-      loginButton.hidden = false;
-      logoutButton.hidden = true;
+      loginFields.hidden = false;
+      logoutArea.hidden = true;
       authStatus.textContent = '대화 기록을 불러오려면 로그인하세요.';
       status.textContent = '';
       return;
     }
 
-    email.disabled = true;
-    password.disabled = true;
-    loginButton.hidden = true;
-    logoutButton.hidden = false;
+    loginFields.hidden = true;
+    logoutArea.hidden = false;
     authStatus.textContent = '로그인됨: ' + user.email;
     historyRef = db.ref('users/' + user.uid + '/history');
 
