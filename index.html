@@ -179,7 +179,7 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
     loginFields.hidden = true;
     logoutArea.hidden = false;
     authStatus.textContent = '로그인됨: ' + user.email;
-    historyRef = db.ref('users/' + user.uid + '/history');
+    historyRef = db.ref('shared/history');
 
     historyRef.on('value', async snapshot => {
       const remote = snapshot.val();
