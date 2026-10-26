@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>끼리-말 비공개 대화방 초대장</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:24px 12px;min-height:100vh;background:#FEF08A;font-family:-apple-system,BlinkMacSystemFont,"Malgun Gothic","맑은 고딕",sans-serif;color:#1E293B;display:flex;justify-content:center;align-items:flex-start}
+.card{width:100%;max-width:420px;background:#FEF08A;border:2px solid #1E293B;border-radius:12px;padding:22px;text-align:center}
+h1{font-size:21px;font-weight:800;margin:0 0 7px}.sub{font-size:13px;margin:0 0 18px}.label{display:block;text-align:left;font-size:14px;font-weight:700;margin-bottom:7px}
+input[type=text]{width:100%;min-height:58px;padding:12px;border:2px solid #1E293B;border-radius:6px;background:#fff;font:inherit;font-size:16px}
+.hint{text-align:left;font-size:12px;line-height:1.5;margin:7px 0 12px}.btn{min-height:42px;padding:9px 6px;border:2px solid #1E293B;border-radius:6px;background:#fff;color:#1E293B;font-weight:700;font-size:13px;cursor:pointer}
+.primary{width:100%;border:0;background:#FFD700;font-size:15px;font-weight:800}.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{display:flex;flex-direction:column;gap:8px;text-align:left}
+.item{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:11px;background:#fff;border:1.5px solid #1E293B;border-radius:6px;overflow-wrap:anywhere}
+.item input{width:17px;height:17px;margin:2px 0 0}.txt{font-weight:700;white-space:pre-wrap;word-break:break-word}.meta{margin-top:5px;font-size:11px;color:#64748B}
+.empty{padding:18px 8px;border:1.5px dashed #64748B;border-radius:6px;font-size:13px;color:#475569;text-align:center}.status{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;text-align:left}.note{font-size:11px;line-height:1.5;color:#475569;margin:14px 0 0;text-align:left}
+</style></head><body><main class="card">
+<h1>끼리-말 비공개 대화방 초대장</h1><p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
+<label class="label" for="msg">초대 문구</label><input id="msg" type="text" maxlength="100" placeholder="초대하고 싶은 말을 입력하세요" autocomplete="off">
+<p class="hint">한글 5~30글자 · 띄어쓰기는 글자 수에서 제외됩니다.<br>한글과 띄어쓰기만 입력할 수 있습니다. <b id="count">0 / 30</b></p>
+<button class="btn primary" id="register">초대 문구 등록</button><div class="status" id="status" role="status" aria-live="polite"></div>
+<h2>등록 이력</h2><div class="tools">
+<button class="btn" id="selectAll">전체 선택</button>
+<button class="btn" id="deleteAll">전체 삭제</button><button class="btn" id="deleteSelected">선택 항목 삭제</button><button class="btn" id="clear">선택 해제</button>
+</div><div class="list" id="list"><div class="empty">아직 등록된 초대 문구가 없습니다.</div></div>
+<p class="note">※ 등록 이력은 현재 사용 중인 브라우저에 저장됩니다. <br>
+다른 기기나 브라우저와 자동으로 공유되지는 않습니다.</p>
+</main>
+<script>
+(()=> {
+const input=document.getElementById('msg'),count=document.getElementById('count'),status=document.getElementById('status'),list=document.getElementById('list'),key='kkiri-mal-invite-history-v1';
+let history=[];
+try{const saved=localStorage.getItem(key);history=saved?JSON.parse(saved):[];if(!Array.isArray(history))history=[]}catch(e){history=[]}
+const length=s=>[...s.replace(/\s/g,'')].length;
+const korean=s=>/^[가-힣ㄱ-ㅎㅏ-ㅣ\s]*$/u.test(s);
+function save(){try{localStorage.setItem(key,JSON.stringify(history));return true}catch(e){status.textContent='브라우저 저장에 실패했습니다. 저장 공간 설정을 확인해 주세요.';return false}}
+function update(){count.textContent=length(input.value)+' / 30';count.style.color=length(input.value)>30?'#B91C1C':'#334155'}
+function render(){list.replaceChildren();if(!history.length){const e=document.createElement('div');e.className='empty';e.textContent='아직 등록된 초대 문구가 없습니다.';list.append(e);return}
+history.forEach(item=>{const row=document.createElement('div');row.className='item';const cb=document.createElement('input');cb.type='checkbox';cb.className='pick';cb.value=item.id;cb.setAttribute('aria-label',item.text+' 선택');const content=document.createElement('div'),txt=document.createElement('div'),meta=document.createElement('div');txt.className='txt';txt.textContent=item.text;meta.className='meta';meta.textContent=item.date;content.append(txt,meta);row.append(cb,content);list.append(row)})}
+function register(){const text=input.value.trim(),n=length(text);if(!text){status.textContent='초대 문구를 입력해 주세요.';input.focus();return}if(!korean(text)){status.textContent='한글과 띄어쓰기만 입력할 수 있습니다.';input.focus();return}if(n<5||n>30){status.textContent='띄어쓰기를 제외하고 5~30글자로 입력해 주세요.';input.focus();return}
+const date=new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});history.unshift({id:Date.now()+'-'+Math.random().toString(36).slice(2),text,date});if(!save()){history.shift();return}render();input.value='';update();status.textContent='초대 문구가 등록되었습니다.';input.focus()}
+document.getElementById('register').addEventListener('click',register);input.addEventListener('keydown',e=>{if(e.key==='Enter')register()});input.addEventListener('input',update);
+document.getElementById('selectAll').addEventListener('click',()=>{list.querySelectorAll('.pick').forEach(x=>x.checked=true);status.textContent='전체 항목을 선택했습니다.'});
+document.getElementById('clear').addEventListener('click',()=>{list.querySelectorAll('.pick').forEach(x=>x.checked=false);status.textContent='선택을 해제했습니다.'});
+document.getElementById('deleteSelected').addEventListener('click',()=>{const ids=new Set([...list.querySelectorAll('.pick:checked')].map(x=>x.value));if(!ids.size){status.textContent='삭제할 항목을 먼저 선택해 주세요.';return}if(!confirm('선택한 '+ids.size+'개 항목을 삭제할까요?'))return;const old=history;history=history.filter(x=>!ids.has(x.id));if(!save()){history=old;return}render();status.textContent=ids.size+'개 항목을 삭제했습니다.'});
+document.getElementById('deleteAll').addEventListener('click',()=>{if(!history.length){status.textContent='삭제할 이력이 없습니다.';return}if(!confirm('등록 이력 '+history.length+'개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;const old=history;history=[];if(!save()){history=old;return}render();status.textContent='등록 이력을 모두 삭제했습니다.'});
+update();render();
+})();
+</script></body></html>
