@@ -14,6 +14,17 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
 .empty{padding:18px 8px;border:1.5px dashed #64748B;border-radius:6px;font-size:13px;color:#475569;text-align:center}.status{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;text-align:left}.note{font-size:11px;line-height:1.5;color:#475569;margin:14px 0 0;text-align:left}
 </style></head><body><main class="card">
 <h1>끼리-말 비공개 대화방 초대장</h1><p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
+<section id="authPanel" style="text-align:left;margin-bottom:18px">
+  <label class="label" for="email">이메일</label>
+  <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
+  <label class="label" for="password">비밀번호</label>
+  <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
+  <div class="tools" style="margin-top:9px;margin-bottom:0">
+    <button class="btn" id="login">로그인</button>
+    <button class="btn" id="logout" hidden>로그아웃</button>
+  </div>
+  <div class="status" id="authStatus" role="status" aria-live="polite">대화 기록을 불러오려면 로그인하세요.</div>
+</section>
 <label class="label" for="msg">초대 문구</label><input id="msg" type="text" maxlength="100" placeholder="초대하고 싶은 말을 입력하세요" autocomplete="off">
 <p class="hint">한글 5~30글자 · 띄어쓰기는 글자 수에서 제외됩니다.<br>한글과 띄어쓰기만 입력할 수 있습니다. <b id="count">0 / 30</b></p>
 <button class="btn primary" id="register">초대 문구 등록</button><div class="status" id="status" role="status" aria-live="polite"></div>
@@ -21,27 +32,242 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
 <button class="btn" id="selectAll">전체 선택</button>
 <button class="btn" id="deleteAll">전체 삭제</button><button class="btn" id="deleteSelected">선택 항목 삭제</button><button class="btn" id="clear">선택 해제</button>
 </div><div class="list" id="list"><div class="empty">아직 등록된 초대 문구가 없습니다.</div></div>
-<p class="note">※ 등록 이력은 현재 사용 중인 브라우저에 저장됩니다. <br>
-다른 기기나 브라우저와 자동으로 공유되지는 않습니다.</p>
+<p class="note">※ 로그인하면 같은 계정으로 접속한 기기와 브라우저에서 등록 이력이 공유됩니다.</p>
 </main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
 <script>
-(()=> {
-const input=document.getElementById('msg'),count=document.getElementById('count'),status=document.getElementById('status'),list=document.getElementById('list'),key='kkiri-mal-invite-history-v1';
-let history=[];
-try{const saved=localStorage.getItem(key);history=saved?JSON.parse(saved):[];if(!Array.isArray(history))history=[]}catch(e){history=[]}
-const length=s=>[...s.replace(/\s/g,'')].length;
-const korean=s=>/^[가-힣ㄱ-ㅎㅏ-ㅣ\s]*$/u.test(s);
-function save(){try{localStorage.setItem(key,JSON.stringify(history));return true}catch(e){status.textContent='브라우저 저장에 실패했습니다. 저장 공간 설정을 확인해 주세요.';return false}}
-function update(){count.textContent=length(input.value)+' / 30';count.style.color=length(input.value)>30?'#B91C1C':'#334155'}
-function render(){list.replaceChildren();if(!history.length){const e=document.createElement('div');e.className='empty';e.textContent='아직 등록된 초대 문구가 없습니다.';list.append(e);return}
-history.forEach(item=>{const row=document.createElement('div');row.className='item';const cb=document.createElement('input');cb.type='checkbox';cb.className='pick';cb.value=item.id;cb.setAttribute('aria-label',item.text+' 선택');const content=document.createElement('div'),txt=document.createElement('div'),meta=document.createElement('div');txt.className='txt';txt.textContent=item.text;meta.className='meta';meta.textContent=item.date;content.append(txt,meta);row.append(cb,content);list.append(row)})}
-function register(){const text=input.value.trim(),n=length(text);if(!text){status.textContent='초대 문구를 입력해 주세요.';input.focus();return}if(!korean(text)){status.textContent='한글과 띄어쓰기만 입력할 수 있습니다.';input.focus();return}if(n<5||n>30){status.textContent='띄어쓰기를 제외하고 5~30글자로 입력해 주세요.';input.focus();return}
-const date=new Date().toLocaleString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});history.unshift({id:Date.now()+'-'+Math.random().toString(36).slice(2),text,date});if(!save()){history.shift();return}render();input.value='';update();status.textContent='초대 문구가 등록되었습니다.';input.focus()}
-document.getElementById('register').addEventListener('click',register);input.addEventListener('keydown',e=>{if(e.key==='Enter')register()});input.addEventListener('input',update);
-document.getElementById('selectAll').addEventListener('click',()=>{list.querySelectorAll('.pick').forEach(x=>x.checked=true);status.textContent='전체 항목을 선택했습니다.'});
-document.getElementById('clear').addEventListener('click',()=>{list.querySelectorAll('.pick').forEach(x=>x.checked=false);status.textContent='선택을 해제했습니다.'});
-document.getElementById('deleteSelected').addEventListener('click',()=>{const ids=new Set([...list.querySelectorAll('.pick:checked')].map(x=>x.value));if(!ids.size){status.textContent='삭제할 항목을 먼저 선택해 주세요.';return}if(!confirm('선택한 '+ids.size+'개 항목을 삭제할까요?'))return;const old=history;history=history.filter(x=>!ids.has(x.id));if(!save()){history=old;return}render();status.textContent=ids.size+'개 항목을 삭제했습니다.'});
-document.getElementById('deleteAll').addEventListener('click',()=>{if(!history.length){status.textContent='삭제할 이력이 없습니다.';return}if(!confirm('등록 이력 '+history.length+'개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.'))return;const old=history;history=[];if(!save()){history=old;return}render();status.textContent='등록 이력을 모두 삭제했습니다.'});
-update();render();
+(() => {
+  const firebaseConfig = {
+    apiKey: "AIzaSyD--yv8AalcVp53ioeS38TukEgSiSDaKhM",
+    authDomain: "kkiri-mal.firebaseapp.com",
+    databaseURL: "https://kkiri-mal-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "kkiri-mal",
+    storageBucket: "kkiri-mal.firebasestorage.app",
+    messagingSenderId: "796572177173",
+    appId: "1:796572177173:web:f3fc3638bb65439fba4f1c"
+  };
+
+  const input = document.getElementById('msg');
+  const count = document.getElementById('count');
+  const status = document.getElementById('status');
+  const list = document.getElementById('list');
+  const email = document.getElementById('email');
+  const password = document.getElementById('password');
+  const authStatus = document.getElementById('authStatus');
+  const loginButton = document.getElementById('login');
+  const logoutButton = document.getElementById('logout');
+  const registerButton = document.getElementById('register');
+  const key = 'kkiri-mal-invite-history-v1';
+  let history = [];
+  let currentUser = null;
+  let historyRef = null;
+  let applyingRemote = false;
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  const length = s => [...s.replace(/\\s/g, '')].length;
+  const korean = s => /^[가-힣ㄱ-ㅎㅏ-ㅣ\\s]*$/u.test(s);
+
+  function update() {
+    count.textContent = length(input.value) + ' / 30';
+    count.style.color = length(input.value) > 30 ? '#B91C1C' : '#334155';
+  }
+
+  function render() {
+    list.replaceChildren();
+    if (!history.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = '아직 등록된 초대 문구가 없습니다.';
+      list.append(e);
+      return;
+    }
+    history.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'pick';
+      cb.value = item.id;
+      cb.setAttribute('aria-label', item.text + ' 선택');
+      const content = document.createElement('div');
+      const txt = document.createElement('div');
+      const meta = document.createElement('div');
+      txt.className = 'txt';
+      txt.textContent = item.text;
+      meta.className = 'meta';
+      meta.textContent = item.date;
+      content.append(txt, meta);
+      row.append(cb, content);
+      list.append(row);
+    });
+  }
+
+  async function persist() {
+    if (!currentUser || !historyRef) {
+      status.textContent = '먼저 로그인해 주세요.';
+      return false;
+    }
+    try {
+      await historyRef.set(history);
+      return true;
+    } catch (e) {
+      status.textContent = '저장 실패: 권한 또는 네트워크 설정을 확인해 주세요.';
+      console.error(e);
+      return false;
+    }
+  }
+
+  function stopSync() {
+    if (historyRef) historyRef.off();
+    historyRef = null;
+    currentUser = null;
+    history = [];
+    render();
+  }
+
+  loginButton.addEventListener('click', async () => {
+    const mail = email.value.trim();
+    const pass = password.value;
+    if (!mail || !pass) {
+      authStatus.textContent = '이메일과 비밀번호를 입력해 주세요.';
+      return;
+    }
+    loginButton.disabled = true;
+    authStatus.textContent = '로그인 중...';
+    try {
+      await auth.signInWithEmailAndPassword(mail, pass);
+    } catch (e) {
+      authStatus.textContent = '로그인 실패: 이메일과 비밀번호를 확인해 주세요.';
+      console.error(e);
+    } finally {
+      loginButton.disabled = false;
+    }
+  });
+
+  logoutButton.addEventListener('click', async () => {
+    try { await auth.signOut(); }
+    catch (e) { authStatus.textContent = '로그아웃하지 못했습니다.'; console.error(e); }
+  });
+
+  auth.onAuthStateChanged(async user => {
+    if (historyRef) historyRef.off();
+    historyRef = null;
+    currentUser = user || null;
+    if (!user) {
+      history = [];
+      render();
+      email.disabled = false;
+      password.disabled = false;
+      loginButton.hidden = false;
+      logoutButton.hidden = true;
+      authStatus.textContent = '대화 기록을 불러오려면 로그인하세요.';
+      status.textContent = '';
+      return;
+    }
+
+    email.disabled = true;
+    password.disabled = true;
+    loginButton.hidden = true;
+    logoutButton.hidden = false;
+    authStatus.textContent = '로그인됨: ' + user.email;
+    historyRef = db.ref('users/' + user.uid + '/history');
+
+    historyRef.on('value', async snapshot => {
+      const remote = snapshot.val();
+      if (Array.isArray(remote)) {
+        applyingRemote = true;
+        history = remote.filter(x => x && typeof x.id === 'string' && typeof x.text === 'string' && typeof x.date === 'string');
+        render();
+        applyingRemote = false;
+      } else if (remote === null) {
+        // Migrate this browser's old local history only if the cloud path is empty.
+        let local = [];
+        try {
+          const saved = localStorage.getItem(key);
+          const parsed = saved ? JSON.parse(saved) : [];
+          if (Array.isArray(parsed)) local = parsed;
+        } catch (_) {}
+        if (local.length && currentUser && currentUser.uid === user.uid) {
+          try {
+            await historyRef.set(local);
+            localStorage.removeItem(key);
+            authStatus.textContent = '이 브라우저의 기존 기록을 클라우드로 옮겼습니다.';
+          } catch (e) {
+            authStatus.textContent = '기록 이전 실패: 데이터베이스 규칙을 확인해 주세요.';
+            console.error(e);
+          }
+        } else {
+          history = [];
+          render();
+        }
+      }
+    }, error => {
+      authStatus.textContent = '기록을 불러오지 못했습니다. 데이터베이스 규칙을 확인해 주세요.';
+      console.error(error);
+    });
+  });
+
+  async function register() {
+    const text = input.value.trim();
+    const n = length(text);
+    if (!currentUser) { status.textContent = '먼저 로그인해 주세요.'; return; }
+    if (!text) { status.textContent = '초대 문구를 입력해 주세요.'; input.focus(); return; }
+    if (!korean(text)) { status.textContent = '한글과 띄어쓰기만 입력할 수 있습니다.'; input.focus(); return; }
+    if (n < 5 || n > 30) { status.textContent = '띄어쓰기를 제외하고 5~30글자로 입력해 주세요.'; input.focus(); return; }
+
+    const date = new Date().toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const item = {id: Date.now() + '-' + Math.random().toString(36).slice(2), text, date};
+    history.unshift(item);
+    if (!await persist()) {
+      history = history.filter(x => x.id !== item.id);
+      render();
+      return;
+    }
+    render();
+    input.value = '';
+    update();
+    status.textContent = '초대 문구가 등록되었습니다.';
+    input.focus();
+  }
+
+  registerButton.addEventListener('click', register);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') register(); });
+  input.addEventListener('input', update);
+
+  document.getElementById('selectAll').addEventListener('click', () => {
+    list.querySelectorAll('.pick').forEach(x => x.checked = true);
+    status.textContent = '전체 항목을 선택했습니다.';
+  });
+  document.getElementById('clear').addEventListener('click', () => {
+    list.querySelectorAll('.pick').forEach(x => x.checked = false);
+    status.textContent = '선택을 해제했습니다.';
+  });
+  document.getElementById('deleteSelected').addEventListener('click', async () => {
+    const ids = new Set([...list.querySelectorAll('.pick:checked')].map(x => x.value));
+    if (!ids.size) { status.textContent = '삭제할 항목을 먼저 선택해 주세요.'; return; }
+    if (!confirm('선택한 ' + ids.size + '개 항목을 삭제할까요?')) return;
+    const old = history.slice();
+    history = history.filter(x => !ids.has(x.id));
+    if (!await persist()) { history = old; render(); return; }
+    render();
+    status.textContent = ids.size + '개 항목을 삭제했습니다.';
+  });
+  document.getElementById('deleteAll').addEventListener('click', async () => {
+    if (!history.length) { status.textContent = '삭제할 이력이 없습니다.'; return; }
+    if (!confirm('등록 이력 ' + history.length + '개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+    const old = history.slice();
+    history = [];
+    if (!await persist()) { history = old; render(); return; }
+    render();
+    status.textContent = '등록 이력을 모두 삭제했습니다.';
+  });
+
+  update();
+  render();
 })();
 </script></body></html>
