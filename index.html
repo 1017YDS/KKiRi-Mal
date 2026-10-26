@@ -15,12 +15,10 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
 </style></head><body><main class="card">
 <h1>끼리-말 비공개 대화방 초대장</h1><p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
 <section id="authPanel" style="text-align:left;margin-bottom:18px">
-  <div id="credentials">
   <label class="label" for="email">이메일</label>
   <input id="email" type="email" autocomplete="username" placeholder="Firebase 계정 이메일" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;margin-bottom:9px">
   <label class="label" for="password">비밀번호</label>
   <input id="password" type="password" autocomplete="current-password" placeholder="비밀번호" style="width:100%;min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit">
-  </div>
   <div class="tools" style="margin-top:9px;margin-bottom:0">
     <button class="btn" id="login">로그인</button>
     <button class="btn" id="logout" hidden>로그아웃</button>
@@ -55,7 +53,6 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
   const count = document.getElementById('count');
   const status = document.getElementById('status');
   const list = document.getElementById('list');
-  const credentials = document.getElementById('credentials');
   const email = document.getElementById('email');
   const password = document.getElementById('password');
   const authStatus = document.getElementById('authStatus');
@@ -72,8 +69,8 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
   const auth = firebase.auth();
   const db = firebase.database();
 
-  const length = s => [...s.replace(/\\s/g, '')].length;
-  const korean = s => /^[가-힣ㄱ-ㅎㅏ-ㅣ\\s]*$/u.test(s);
+  const length = s => [...s.replace(/\s/g, '')].length;
+  const korean = s => /^[가-힣ㄱ-ㅎㅏ-ㅣ\s]*$/u.test(s);
 
   function update() {
     count.textContent = length(input.value) + ' / 30';
@@ -99,9 +96,12 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
       cb.setAttribute('aria-label', item.text + ' 선택');
       const content = document.createElement('div');
       const txt = document.createElement('div');
+      const meta = document.createElement('div');
       txt.className = 'txt';
       txt.textContent = item.text;
-      content.append(txt);
+      meta.className = 'meta';
+      meta.textContent = item.date;
+      content.append(txt, meta);
       row.append(cb, content);
       list.append(row);
     });
@@ -161,7 +161,6 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
     if (!user) {
       history = [];
       render();
-      credentials.hidden = false;
       email.disabled = false;
       password.disabled = false;
       loginButton.hidden = false;
@@ -171,19 +170,18 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
       return;
     }
 
-    credentials.hidden = true;
     email.disabled = true;
     password.disabled = true;
     loginButton.hidden = true;
     logoutButton.hidden = false;
     authStatus.textContent = '로그인됨: ' + user.email;
-    historyRef = db.ref('shared/history');
+    historyRef = db.ref('users/' + user.uid + '/history');
 
     historyRef.on('value', async snapshot => {
       const remote = snapshot.val();
       if (Array.isArray(remote)) {
         applyingRemote = true;
-        history = remote.filter(x => x && typeof x.id === 'string' && typeof x.text === 'string');
+        history = remote.filter(x => x && typeof x.id === 'string' && typeof x.text === 'string' && typeof x.date === 'string');
         render();
         applyingRemote = false;
       } else if (remote === null) {
@@ -222,7 +220,8 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
     if (!korean(text)) { status.textContent = '한글과 띄어쓰기만 입력할 수 있습니다.'; input.focus(); return; }
     if (n < 5 || n > 30) { status.textContent = '띄어쓰기를 제외하고 5~30글자로 입력해 주세요.'; input.focus(); return; }
 
-    const item = {id: Date.now() + '-' + Math.random().toString(36).slice(2), text};
+    const date = new Date().toLocaleString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const item = {id: Date.now() + '-' + Math.random().toString(36).slice(2), text, date};
     history.unshift(item);
     if (!await persist()) {
       history = history.filter(x => x.id !== item.id);
