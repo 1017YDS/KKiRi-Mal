@@ -140,7 +140,24 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
     loginButton.disabled = true;
     authStatus.textContent = '로그인 중...';
     try {
-      await auth.signInWithEmailAndPassword(mail, pass);
+  await Promise.race([
+    auth.signInWithEmailAndPassword(mail, pass),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('LOGIN_TIMEOUT')), 15000)
+    )
+  ]);
+} catch (e) {
+  if (e.message === 'LOGIN_TIMEOUT') {
+    authStatus.textContent =
+      '로그인 응답이 없습니다. 네트워크와 Firebase 설정을 확인해 주세요.';
+  } else {
+    authStatus.textContent =
+      '로그인 실패: ' + (e.code || '네트워크 오류');
+  }
+  console.error(e);
+} finally {
+  loginButton.disabled = false;
+    }
     } catch (e) {
       authStatus.textContent = '로그인 실패: 이메일과 비밀번호를 확인해 주세요.';
       console.error(e);
@@ -175,7 +192,7 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}.list{displ
     loginButton.hidden = true;
     logoutButton.hidden = false;
     authStatus.textContent = '로그인됨: ' + user.email;
-    const historyRef = firebase.database().ref("shared/history");
+    historyRef = db.ref("shared/history");
 
     historyRef.on('value', async snapshot => {
       const remote = snapshot.val();
