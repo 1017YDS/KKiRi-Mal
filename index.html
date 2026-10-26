@@ -31,7 +31,7 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 <body>
 <main class="card">
 <h1>끼리-말 비공개 대화방 초대장</h1>
-<p class="sub">초대 문구를 직접 작성해 등록하세요.</p>
+<p class="sub">초대 문구를 직접 작성해 전송하세요.</p>
 
 <section id="loginPanel" style="text-align:left;margin-bottom:18px">
   <label class="label" for="email">이메일</label>
@@ -53,15 +53,15 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 <button class="btn primary" id="register" type="button">초대장 전송</button>
 <div class="status" id="status" role="status" aria-live="polite"></div>
 
-<h2>등록 이력</h2>
+<h2>전송 이력</h2>
 <div class="tools">
   <button class="btn" id="selectAll" type="button">전체 선택</button>
   <button class="btn" id="deleteAll" type="button">전체 삭제</button>
   <button class="btn" id="deleteSelected" type="button">선택 항목 삭제</button>
   <button class="btn" id="clear" type="button">선택 해제</button>
 </div>
-<div class="list" id="list"><div class="empty">아직 등록된 초대 문구가 없습니다.</div></div>
-<p class="note">※ 로그인하면 같은 공유 기록을 사용하는 계정과 기기에서 등록 이력이 공유됩니다.</p>
+<div class="list" id="list"><div class="empty">아직 전송된 초대 문구가 없습니다.</div></div>
+<p class="note">※ 로그인하면 같은 공유 기록을 사용하는 계정과 기기에서 전송 이력이 공유됩니다.</p>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -127,7 +127,7 @@ function render() {
   if (!history.length) {
     const empty = document.createElement('div');
     empty.className = 'empty';
-    empty.textContent = '아직 등록된 초대 문구가 없습니다.';
+    empty.textContent = '아직 전송된 초대 문구가 없습니다.';
     list.append(empty);
     return;
   }
@@ -393,7 +393,7 @@ async function register() {
     if (ok) {
       input.value = '';
       updateCount();
-      status.textContent = '초대 문구가 등록되었습니다.';
+      status.textContent = '초대 문구가 전송되었습니다.';
       input.focus();
     }
   });
@@ -441,12 +441,12 @@ $('deleteAll').addEventListener('click', async () => {
     return;
   }
 
-  if (!confirm('등록 이력 ' + history.length +
+  if (!confirm('전송 이력 ' + history.length +
       '개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
 
   await runWrite(async () => {
     const ok = await changeHistory(() => []);
-    if (ok) status.textContent = '등록 이력을 모두 삭제했습니다.';
+    if (ok) status.textContent = '전송 이력을 모두 삭제했습니다.';
   });
 });
 
