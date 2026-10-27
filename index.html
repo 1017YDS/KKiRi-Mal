@@ -357,8 +357,29 @@ auth.onAuthStateChanged(async user => {
   }
 
   loginPanel.hidden = true;
+  nicknamePanel.hidden = false;
   logoutButton.hidden = false;
   logoutButton.disabled = false;
+
+  // 로그인한 계정의 닉네임을 불러옵니다. 아직 없으면 입력칸을 비워 둡니다.
+  nicknameStatus.textContent = '닉네임을 한글 3~5글자로 설정해 주세요.';
+  try {
+    const nicknameSnapshot = await db.ref('profiles/' + user.uid + '/nickname').once('value');
+    if (generation !== authGeneration || !currentUser || currentUser.uid !== user.uid) return;
+    const savedNickname = nicknameSnapshot.val();
+    if (typeof savedNickname === 'string' && /^[가-힣]{3,5}$/u.test(savedNickname)) {
+      currentNickname = savedNickname;
+      nicknameInput.value = savedNickname;
+      nicknameStatus.textContent = '저장된 닉네임: ' + savedNickname + ' (변경할 수 있습니다.)';
+      authStatus.textContent = '로그인됨 · ' + savedNickname;
+    } else {
+      currentNickname = '';
+      nicknameInput.value = '';
+    }
+  } catch (error) {
+    nicknameStatus.textContent = '닉네임을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
+    console.error('닉네임 읽기 오류:', error);
+  }
   
 const accountLabels = {
   'dkREk51h4EgdpovjsGDXJbd5KE73': '대장',
