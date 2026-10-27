@@ -378,22 +378,35 @@ auth.onAuthStateChanged(async user => {
     // 일반 계정만 닉네임을 불러오거나 설정합니다.
     nicknameStatus.textContent = '닉네임을 한글 3~5글자로 설정해 주세요.';
     try {
-      const nicknameSnapshot = await db.ref('profiles/' + user.uid + '/nickname').once('value');
+      const profileSnapshot = await db.ref('profiles/' + user.uid).once('value');
       if (generation !== authGeneration || !currentUser || currentUser.uid !== user.uid) return;
-      const savedNickname = nicknameSnapshot.val();
+      const profile = profileSnapshot.val() || {};
+      const savedNickname = profile.nickname;
+      const changeAllowed = profile.changeAllowed === true;
+
       if (typeof savedNickname === 'string' && /^[가-힣]{3,5}$/u.test(savedNickname)) {
         currentNickname = savedNickname;
         nicknameInput.value = savedNickname;
-        nicknameInput.disabled = true;
-        saveNicknameButton.hidden = true;
-        nicknamePanel.hidden = true;
-        nicknameStatus.textContent = '';
-        authStatus.textContent = '로그인됨 · ' + savedNickname;
+        nicknameInput.disabled = !changeAllowed;
+        saveNicknameButton.hidden = !changeAllowed;
+        nicknamePanel.hidden = !changeAllowed;
+        if (changeAllowed) {
+          nicknameStatus.textContent = '채널주가 변경을 허락했습니다. 새 닉네임을 입력해 주세요.';
+          saveNicknameButton.textContent = '변경';
+          authStatus.textContent = '로그인됨 · ' + savedNickname + ' (닉네임 변경 가능)';
+        } else {
+          nicknameStatus.textContent = '';
+          saveNicknameButton.textContent = '등록';
+          authStatus.textContent = '로그인됨 · ' + savedNickname;
+        }
       } else {
         currentNickname = '';
         nicknameInput.value = '';
         nicknameInput.disabled = false;
         saveNicknameButton.hidden = false;
+        saveNicknameButton.textContent = '등록';
+        nicknamePanel.hidden = false;
+        nicknameStatus.textContent = '닉네임을 한글 3~5글자로 설정해 주세요.';
         authStatus.textContent = '로그인됨 · 닉네임 등록 필요';
       }
     } catch (error) {
@@ -564,37 +577,60 @@ async function saveNickname() {
     nicknameStatus.textContent = '주인장은 닉네임 설정이 필요하지 않습니다.';
     return;
   }
+
   const nickname = nicknameInput.value;
   if (!/^[가-힣]{3,5}$/u.test(nickname)) {
     nicknameStatus.textContent = '닉네임은 띄어쓰기 없이 한글 3~5글자로 입력해 주세요.';
     nicknameInput.focus();
     return;
   }
+
   saveNicknameButton.disabled = true;
-  nicknameStatus.textContent = '닉네임 등록 중...';
+  nicknameStatus.textContent = '닉네임 저장 중...';
+
   try {
     const user = currentUser;
-    const nicknameRef = db.ref('profiles/' + user.uid + '/nickname');
-    const existing = await nicknameRef.once('value');
-    if (existing.exists()) {
-      nicknameStatus.textContent = '이미 등록된 닉네임은 변경할 수 없습니다.';
-      nicknameInput.value = String(existing.val());
+    const profileRef = db.ref('profiles/' + user.uid);
+    const snapshot = await profileRef.once('value');
+    const profile = snapshot.val() || {};
+    const existingNickname = profile.nickname;
+    const changeAllowed = profile.changeAllowed === true;
+
+    if (typeof existingNickname === 'string' && /^[가-힣]{3,5}$/u.test(existingNickname) && !changeAllowed) {
+      nicknameStatus.textContent = '닉네임 변경은 채널주의 허락이 있어야 가능합니다.';
+      nicknameInput.value = existingNickname;
       nicknameInput.disabled = true;
       saveNicknameButton.hidden = true;
+      nicknamePanel.hidden = true;
       return;
     }
-    await nicknameRef.set(nickname);
+
+    if (typeof existingNickname === 'string' && /^[가-힣]{3,5}$/u.test(existingNickname) && existingNickname === nickname) {
+      nicknameStatus.textContent = '현재 닉네임과 같습니다. 다른 닉네임을 입력해 주세요.';
+      return;
+    }
+
+    // 닉네임과 변경 허락 상태를 함께 저장해 규칙의 필수 항목을 유지합니다.
+    // 최초 등록 시 changeAllowed=false, 허락받은 변경 후에도 false로 소비됩니다.
+    await profileRef.set({
+      nickname,
+      changeAllowed: false
+    });
+
     if (!currentUser || currentUser.uid !== user.uid) return;
     currentNickname = nickname;
     authStatus.textContent = '로그인됨 · ' + nickname;
+    nicknameInput.value = nickname;
     nicknameInput.disabled = true;
     saveNicknameButton.hidden = true;
+    saveNicknameButton.textContent = '등록';
     nicknamePanel.hidden = true;
+    nicknameStatus.textContent = '';
   } catch (error) {
     nicknameStatus.textContent = '닉네임 저장에 실패했습니다. Firebase 규칙을 확인해 주세요.';
     console.error('닉네임 저장 오류:', error);
   } finally {
-    if (!currentNickname) saveNicknameButton.disabled = false;
+    saveNicknameButton.disabled = false;
   }
 }
 
