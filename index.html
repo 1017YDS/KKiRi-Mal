@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -22,6 +23,9 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 .item{display:grid;grid-template-columns:22px minmax(0,1fr);gap:8px;padding:11px;background:#fff;border:1.5px solid #1E293B;border-radius:6px;overflow-wrap:anywhere}
 .item input{width:17px;height:17px;margin:2px 0 0}
 .txt{font-weight:700;white-space:pre-wrap;word-break:break-word}
+.item-meta{font-size:11px;color:#475569;margin-top:6px}
+.item-actions{margin-top:8px;display:flex;justify-content:flex-end}
+.small-btn{min-height:32px;padding:5px 10px;border:1.5px solid #1E293B;border-radius:5px;background:#fff;color:#1E293B;font-weight:700;font-size:12px;cursor:pointer}
 .empty{padding:18px 8px;border:1.5px dashed #64748B;border-radius:6px;font-size:13px;color:#475569;text-align:center}
 .status{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;text-align:left;overflow-wrap:anywhere}
 .note{font-size:11px;line-height:1.5;color:#475569;margin:14px 0 0;text-align:left}
@@ -61,7 +65,8 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
   <button class="btn" id="clear" type="button">선택 해제</button>
 </div>
 <div class="list" id="list"><div class="empty">아직 전송된 초대 문구가 없습니다.</div></div>
-<p class="note">※ 로그인하면 같은 공유 기록을 사용하는 계정과 기기에서 전송 이력이 공유됩니다.</p>
+<p class="note">※ 로그인하면 같은 공유 기록을 사용하는 계정과 기기에서 전송 이력이 공유됩니다.<br>
+※ 본인은 자기 글만 삭제할 수 있으며, 주인장은 모든 글을 삭제할 수 있습니다.</p>
 </main>
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -82,6 +87,8 @@ const firebaseConfig = {
   appId: "1:796572177173:web:f3fc3638bb65439fba4f1c"
 };
 
+const OWNER_UID = 'dkREk51h4EgdpovjsGDXJbd5KE73';
+
 const $ = id => document.getElementById(id);
 const input = $('msg');
 const count = $('count');
@@ -94,13 +101,16 @@ const authStatus = $('authStatus');
 const loginButton = $('login');
 const logoutButton = $('logout');
 const registerButton = $('register');
-const storageKey = 'kkiri-mal-invite-history-v1';
 
-let history = [];
 let currentUser = null;
-let historyRef = null;
-let historyListener = null;
+let legacyRef = null;
+let postsRef = null;
+let legacyListener = null;
+let postsListener = null;
+let legacyHistory = [];
+let postsHistory = [];
 let busy = false;
+let authGeneration = 0;
 
 if (!window.firebase) {
   authStatus.textContent = 'Firebase를 불러오지 못했습니다. 네트워크 연결을 확인해 주세요.';
@@ -112,6 +122,8 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 
 const auth = firebase.auth();
 const db = firebase.database();
+
+const isOwner = () => !!currentUser && currentUser.uid === OWNER_UID;
 const length = s => [...s.replace(/\s/g, '')].length;
 const isKorean = s => /^[가-힣ㄱ-ㅎㅏ-ㅣ\s]*$/u.test(s);
 
@@ -119,39 +131,6 @@ function updateCount() {
   const n = length(input.value);
   count.textContent = n + ' / 30';
   count.style.color = n > 30 ? '#B91C1C' : '#334155';
-}
-
-function render() {
-  list.replaceChildren();
-
-  if (!history.length) {
-    const empty = document.createElement('div');
-    empty.className = 'empty';
-    empty.textContent = '아직 전송된 초대 문구가 없습니다.';
-    list.append(empty);
-    return;
-  }
-
-  history.forEach(item => {
-    const row = document.createElement('div');
-    row.className = 'item';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.className = 'pick';
-    cb.value = item.id;
-    cb.setAttribute('aria-label', item.text + ' 선택');
-
-    const content = document.createElement('div');
-    const text = document.createElement('div');
-    text.className = 'txt';
-    text.textContent = item.text;
-
-    // 날짜와 시간은 화면에 표시하지 않습니다.
-    content.append(text);
-    row.append(cb, content);
-    list.append(row);
-  });
 }
 
 function setBusy(value) {
@@ -162,54 +141,115 @@ function setBusy(value) {
 }
 
 function stopSync() {
-  if (historyRef && historyListener) {
-    historyRef.off('value', historyListener);
-  }
-  historyRef = null;
-  historyListener = null;
+  if (legacyRef && legacyListener) legacyRef.off('value', legacyListener);
+  if (postsRef && postsListener) postsRef.off('value', postsListener);
+
+  legacyRef = null;
+  postsRef = null;
+  legacyListener = null;
+  postsListener = null;
 }
 
-function validHistory(value) {
-  return Array.isArray(value)
-    ? value.filter(x => x &&
-        typeof x.id === 'string' &&
-        typeof x.text === 'string')
-    : [];
+function canDelete(item) {
+  if (!currentUser) return false;
+  if (isOwner()) return true;
+
+  // 작성자 정보가 없는 과거 기록은 일반 사용자가 삭제할 수 없습니다.
+  return item.kind === 'post' && item.uid === currentUser.uid;
 }
 
-function readLocalHistory() {
-  try {
-    const value = JSON.parse(localStorage.getItem(storageKey) || '[]');
-    return validHistory(value);
-  } catch (error) {
-    console.warn('기존 기록 읽기 실패:', error);
-    return [];
-  }
+function getAllItems() {
+  const legacy = legacyHistory.map(item => ({
+    id: String(item.id),
+    text: String(item.text || ''),
+    uid: typeof item.uid === 'string' ? item.uid : '',
+    date: typeof item.date === 'string' ? item.date : '',
+    kind: 'legacy'
+  }));
+
+  const posts = postsHistory.map(item => ({
+    id: String(item.id),
+    text: String(item.text || ''),
+    uid: typeof item.uid === 'string' ? item.uid : '',
+    date: typeof item.date === 'string' ? item.date : '',
+    kind: 'post'
+  }));
+
+  // 새 글을 먼저 표시합니다.
+  return [...posts, ...legacy];
 }
 
-async function changeHistory(transform) {
-  if (!currentUser || !historyRef) {
-    status.textContent = '먼저 로그인해 주세요.';
-    return false;
+function render() {
+  list.replaceChildren();
+
+  const items = getAllItems();
+
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = '아직 전송된 초대 문구가 없습니다.';
+    list.append(empty);
+    return;
   }
 
-  try {
-    const result = await historyRef.transaction(current => {
-      return transform(validHistory(current));
-    });
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'item';
 
-    if (!result.committed) {
-      status.textContent = '기록을 저장하지 못했습니다. 다시 시도해 주세요.';
-      return false;
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'pick';
+    cb.dataset.kind = item.kind;
+    cb.value = item.id;
+    cb.setAttribute('aria-label', item.text + ' 선택');
+    cb.disabled = !canDelete(item);
+
+    const content = document.createElement('div');
+
+    const text = document.createElement('div');
+    text.className = 'txt';
+    text.textContent = item.text;
+    content.append(text);
+
+    const meta = document.createElement('div');
+    meta.className = 'item-meta';
+
+    if (item.kind === 'legacy') {
+      meta.textContent = '기존 기록' + (item.uid ? ' · 작성자 정보 있음' : ' · 작성자 미확인');
+    } else if (item.uid === currentUser?.uid) {
+      meta.textContent = '내가 작성한 글';
+    } else {
+      meta.textContent = '다른 사용자가 작성한 글';
     }
 
-    history = validHistory(result.snapshot.val());
-    render();
-    return true;
-  } catch (error) {
-    console.error('기록 저장 오류:', error);
-    status.textContent = '저장 실패: Firebase 권한 또는 네트워크를 확인해 주세요.';
-    return false;
+    content.append(meta);
+
+    if (canDelete(item)) {
+      const actions = document.createElement('div');
+      actions.className = 'item-actions';
+
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'small-btn';
+      del.textContent = '이 글 삭제';
+      del.addEventListener('click', () => deleteOne(item));
+
+      actions.append(del);
+      content.append(actions);
+    }
+
+    row.append(cb, content);
+    list.append(row);
+  });
+}
+
+function showWriteError(error) {
+  console.error('Firebase 쓰기 오류:', error);
+
+  if (error && error.code === 'PERMISSION_DENIED') {
+    status.textContent = '권한이 없습니다. Firebase 규칙과 로그인 계정을 확인해 주세요.';
+  } else {
+    status.textContent = '저장에 실패했습니다. 네트워크와 Firebase 규칙을 확인해 주세요.';
   }
 }
 
@@ -222,6 +262,8 @@ async function runWrite(task) {
   setBusy(true);
   try {
     await task();
+  } catch (error) {
+    showWriteError(error);
   } finally {
     setBusy(false);
   }
@@ -275,9 +317,13 @@ logoutButton.addEventListener('click', async () => {
 });
 
 auth.onAuthStateChanged(user => {
+  authGeneration++;
+  const generation = authGeneration;
+
   stopSync();
   currentUser = user || null;
-  history = [];
+  legacyHistory = [];
+  postsHistory = [];
   render();
 
   if (!user) {
@@ -292,58 +338,68 @@ auth.onAuthStateChanged(user => {
     return;
   }
 
-  // 로그인 입력 영역만 숨기고 로그아웃 버튼은 별도로 표시합니다.
   loginPanel.hidden = true;
   logoutButton.hidden = false;
   logoutButton.disabled = false;
   authStatus.textContent = '로그인됨: ' + (user.email || '계정');
 
-  // 두 계정이 함께 사용하는 공유 경로입니다.
-  historyRef = db.ref('shared/history');
+  legacyRef = db.ref('shared/history');
+  postsRef = db.ref('shared/posts');
 
-  const refForUser = historyRef;
-  historyListener = snapshot => {
-    if (!currentUser || currentUser.uid !== user.uid ||
-        historyRef !== refForUser) return;
+  const currentLegacyRef = legacyRef;
+  const currentPostsRef = postsRef;
 
-    const remote = snapshot.val();
+  legacyListener = snapshot => {
+    if (generation !== authGeneration || !currentUser ||
+        currentUser.uid !== user.uid || legacyRef !== currentLegacyRef) return;
 
-    if (remote === null) {
-      const local = readLocalHistory();
+    const value = snapshot.val();
 
-      if (local.length) {
-        refForUser.transaction(current => current === null ? local : current)
-          .then(result => {
-            if (!currentUser || currentUser.uid !== user.uid) return;
-            if (result.committed) {
-              localStorage.removeItem(storageKey);
-              authStatus.textContent = '기존 브라우저 기록을 클라우드로 이전했습니다.';
-            }
-          })
-          .catch(error => {
-            authStatus.textContent = '기록 이전 실패: Firebase 설정을 확인해 주세요.';
-            console.error(error);
-          });
-      } else {
-        history = [];
-        render();
-      }
+    if (value === null) {
+      legacyHistory = [];
+    } else if (Array.isArray(value)) {
+      legacyHistory = value.filter(x =>
+        x && typeof x.id === 'string' && typeof x.text === 'string'
+      );
+    } else {
+      authStatus.textContent = '기존 기록 형식이 올바르지 않습니다.';
       return;
     }
 
-    if (!Array.isArray(remote)) {
-      authStatus.textContent = '공유 기록 형식이 올바르지 않습니다.';
-      return;
-    }
-
-    history = validHistory(remote);
     render();
   };
 
-  historyRef.on('value', historyListener, error => {
-    if (!currentUser || currentUser.uid !== user.uid) return;
-    authStatus.textContent = '기록을 불러오지 못했습니다. Firebase 보안 규칙을 확인해 주세요.';
-    console.error('기록 읽기 오류:', error);
+  postsListener = snapshot => {
+    if (generation !== authGeneration || !currentUser ||
+        currentUser.uid !== user.uid || postsRef !== currentPostsRef) return;
+
+    const value = snapshot.val() || {};
+
+    postsHistory = Object.entries(value)
+      .filter(([id, item]) =>
+        item && typeof item.text === 'string' &&
+        typeof item.uid === 'string'
+      )
+      .map(([id, item]) => ({
+        id,
+        text: item.text,
+        uid: item.uid,
+        date: typeof item.date === 'string' ? item.date : ''
+      }));
+
+    render();
+  };
+
+  currentLegacyRef.on('value', legacyListener, error => {
+    if (generation !== authGeneration) return;
+    authStatus.textContent = '기존 기록을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
+    console.error('기존 기록 읽기 오류:', error);
+  });
+
+  currentPostsRef.on('value', postsListener, error => {
+    if (generation !== authGeneration) return;
+    authStatus.textContent = '새 기록을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
+    console.error('새 기록 읽기 오류:', error);
   });
 }, error => {
   authStatus.textContent = '로그인 상태를 확인하지 못했습니다. 새로고침해 주세요.';
@@ -375,78 +431,205 @@ async function register() {
   }
 
   await runWrite(async () => {
+    const user = currentUser;
+    if (!user) {
+      status.textContent = '로그인 상태를 확인해 주세요.';
+      return;
+    }
+
+    const id = window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : Date.now() + '-' + Math.random().toString(36).slice(2);
+
     const item = {
-      id: (window.crypto && window.crypto.randomUUID
-        ? window.crypto.randomUUID()
-        : Date.now() + '-' + Math.random().toString(36).slice(2)),
+      id,
       text,
-      date: new Date().toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      uid: user.uid,
+      date: new Date().toISOString()
     };
 
-    const ok = await changeHistory(items => [item, ...items]);
-    if (ok) {
-      input.value = '';
-      updateCount();
-      status.textContent = '초대 문구가 전송되었습니다.';
-      input.focus();
+    await db.ref('shared/posts/' + id).set(item);
+
+    input.value = '';
+    updateCount();
+    status.textContent = '초대 문구가 전송되었습니다.';
+    input.focus();
+  });
+}
+
+async function deleteOne(item) {
+  if (!currentUser || !canDelete(item)) {
+    status.textContent = '이 글을 삭제할 권한이 없습니다.';
+    return;
+  }
+
+  if (!confirm('이 초대 문구를 삭제할까요?')) return;
+
+  await runWrite(async () => {
+    if (item.kind === 'legacy') {
+      if (!isOwner()) {
+        status.textContent = '기존 기록은 주인장만 삭제할 수 있습니다.';
+        return;
+      }
+
+      const ref = db.ref('shared/history');
+      const result = await ref.transaction(current => {
+        if (!Array.isArray(current)) return current;
+        return current.filter(x => !x || String(x.id) !== item.id);
+      });
+
+      if (!result.committed) {
+        status.textContent = '기존 기록을 삭제하지 못했습니다.';
+        return;
+      }
+    } else {
+      await db.ref('shared/posts/' + item.id).remove();
     }
+
+    status.textContent = '초대 문구를 삭제했습니다.';
   });
 }
 
 registerButton.addEventListener('click', register);
+
 input.addEventListener('keydown', event => {
   if (event.key === 'Enter') register();
 });
+
 input.addEventListener('input', updateCount);
 
 $('selectAll').addEventListener('click', () => {
-  list.querySelectorAll('.pick').forEach(cb => { cb.checked = true; });
-  status.textContent = '전체 항목을 선택했습니다.';
+  list.querySelectorAll('.pick:not(:disabled)').forEach(cb => {
+    cb.checked = true;
+  });
+  status.textContent = '삭제할 수 있는 항목을 선택했습니다.';
 });
 
 $('clear').addEventListener('click', () => {
-  list.querySelectorAll('.pick').forEach(cb => { cb.checked = false; });
+  list.querySelectorAll('.pick').forEach(cb => {
+    cb.checked = false;
+  });
   status.textContent = '선택을 해제했습니다.';
 });
 
 $('deleteSelected').addEventListener('click', async () => {
-  const ids = new Set(
-    [...list.querySelectorAll('.pick:checked')].map(cb => cb.value)
-  );
+  const selected = [...list.querySelectorAll('.pick:checked')]
+    .map(cb => ({
+      id: cb.value,
+      kind: cb.dataset.kind
+    }));
 
-  if (!ids.size) {
+  if (!selected.length) {
     status.textContent = '삭제할 항목을 먼저 선택해 주세요.';
     return;
   }
 
-  if (!confirm('선택한 ' + ids.size + '개 항목을 삭제할까요?')) return;
+  if (!confirm('선택한 ' + selected.length + '개 항목을 삭제할까요?')) return;
 
   await runWrite(async () => {
-    const ok = await changeHistory(items =>
-      items.filter(item => !ids.has(item.id))
-    );
-    if (ok) status.textContent = ids.size + '개 항목을 삭제했습니다.';
+    let deleted = 0;
+    let failed = 0;
+
+    for (const item of selected) {
+      try {
+        if (item.kind === 'legacy') {
+          if (!isOwner()) {
+            failed++;
+            continue;
+          }
+
+          const ref = db.ref('shared/history');
+          const result = await ref.transaction(current => {
+            if (!Array.isArray(current)) return current;
+            return current.filter(x => !x || String(x.id) !== item.id);
+          });
+
+          if (result.committed) deleted++;
+          else failed++;
+        } else {
+          const target = postsHistory.find(x => x.id === item.id);
+          if (!target || !canDelete({...target, kind:'post'})) {
+            failed++;
+            continue;
+          }
+
+          await db.ref('shared/posts/' + item.id).remove();
+          deleted++;
+        }
+      } catch (error) {
+        console.error('선택 항목 삭제 오류:', error);
+        failed++;
+      }
+    }
+
+    if (failed) {
+      status.textContent = deleted + '개 삭제 완료, ' + failed +
+        '개는 권한 또는 네트워크 문제로 삭제하지 못했습니다.';
+    } else {
+      status.textContent = deleted + '개 항목을 삭제했습니다.';
+    }
   });
 });
 
 $('deleteAll').addEventListener('click', async () => {
-  if (!history.length) {
-    status.textContent = '삭제할 이력이 없습니다.';
+  if (!currentUser) {
+    status.textContent = '먼저 로그인해 주세요.';
     return;
   }
 
-  if (!confirm('전송 이력 ' + history.length +
-      '개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.')) return;
+  const deletablePosts = postsHistory.filter(item =>
+    isOwner() || item.uid === currentUser.uid
+  );
+
+  const deletableLegacy = isOwner() ? legacyHistory : [];
+
+  const total = deletablePosts.length + deletableLegacy.length;
+
+  if (!total) {
+    status.textContent = isOwner()
+      ? '삭제할 이력이 없습니다.'
+      : '삭제할 본인 글이 없습니다.';
+    return;
+  }
+
+  const message = isOwner()
+    ? '전송 이력 ' + total + '개를 모두 삭제할까요? 이 작업은 되돌릴 수 없습니다.'
+    : '본인이 작성한 글 ' + total + '개를 삭제할까요? 다른 사람의 글은 유지됩니다.';
+
+  if (!confirm(message)) return;
 
   await runWrite(async () => {
-    const ok = await changeHistory(() => []);
-    if (ok) status.textContent = '전송 이력을 모두 삭제했습니다.';
+    let deleted = 0;
+    let failed = 0;
+
+    for (const item of deletablePosts) {
+      try {
+        await db.ref('shared/posts/' + item.id).remove();
+        deleted++;
+      } catch (error) {
+        console.error('글 삭제 오류:', error);
+        failed++;
+      }
+    }
+
+    if (isOwner() && deletableLegacy.length) {
+      try {
+        const ref = db.ref('shared/history');
+        const result = await ref.set([]);
+        void result;
+        deleted += deletableLegacy.length;
+      } catch (error) {
+        console.error('기존 기록 삭제 오류:', error);
+        failed += deletableLegacy.length;
+      }
+    }
+
+    if (failed) {
+      status.textContent = deleted + '개 삭제 완료, ' + failed +
+        '개는 삭제하지 못했습니다.';
+    } else {
+      status.textContent = deleted + '개 항목을 삭제했습니다.';
+    }
   });
 });
 
