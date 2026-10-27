@@ -1,1 +1,114 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>닉네임 변경 허락 관리</title><style>*{box-sizing:border-box}body{margin:0;padding:24px 12px;background:#fff;color:#222;font-family:Arial,"Malgun Gothic",sans-serif}.card{max-width:760px;margin:auto;border:1px solid #ddd;border-radius:10px;padding:20px}h1{font-size:22px}button{background:#0047A0;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:bold;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;gap:12px;align-items:center;justify-content:space-between;border:1px solid #ddd;border-radius:8px;padding:12px;margin:8px 0;overflow-wrap:anywhere}.small{font-size:12px;color:#555}.status{margin:12px 0;font-weight:bold}a{color:#0047A0}</style></head><body><main class="card"><h1>닉네임 변경 허락 관리</h1><p>채널주 전용 페이지입니다. <br>계정별로 변경 허락을 켜거나 끌 수 있습니다.</p><p><a href="index.html">초대장 화면으로 돌아가기</a></p><div id="status" class="status">로그인 상태 확인 중...</div><div id="list"></div></main><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script><script>(()=>{const config={apiKey:"AIzaSyD--yv8AalcVp53ioeS38TukEgSiSDaKhM",authDomain:"kkiri-mal.firebaseapp.com",databaseURL:"https://kkiri-mal-default-rtdb.asia-southeast1.firebasedatabase.app",projectId:"kkiri-mal",storageBucket:"kkiri-mal.firebasestorage.app",messagingSenderId:"796572177173",appId:"1:796572177173:web:f3fc3638bb65439fba4f1c"};const OWNER='dkREk51h4EgdpovjsGDXJbd5KE73';firebase.initializeApp(config);const auth=firebase.auth(),db=firebase.database(),status=document.getElementById('status'),list=document.getElementById('list');let ref=null;auth.onAuthStateChanged(user=>{if(ref)ref.off();list.replaceChildren();if(!user){status.textContent='로그인이 필요합니다. index.html에서 로그인한 뒤 다시 열어 주세요.';return}if(user.uid!==OWNER){status.textContent='접근 권한이 없습니다. 채널주 계정으로 로그인해 주세요.';return}status.textContent='채널주로 로그인됨';ref=db.ref('profiles');ref.on('value',snap=>{list.replaceChildren();const profiles=snap.val()||{};const entries=Object.entries(profiles).filter(([uid,p])=>uid!==OWNER&&p&&p.nickname);if(!entries.length){list.textContent='등록된 닉네임이 없습니다.';return}entries.sort((a,b)=>a[1].nickname.localeCompare(b[1].nickname,'ko')).forEach(([uid,p])=>{const row=document.createElement('div');row.className='row';const info=document.createElement('div');const name=document.createElement('strong');name.textContent=p.nickname;const meta=document.createElement('div');meta.className='small';meta.textContent='계정 UID: '+uid;info.append(name,meta);const btn=document.createElement('button');btn.textContent=p.changeAllowed?'변경 허락 끄기':'변경 허락하기';btn.addEventListener('click',async()=>{btn.disabled=true;try{await db.ref('profiles/'+uid+'/changeAllowed').set(!p.changeAllowed);status.textContent=p.changeAllowed?'변경 허락을 껐습니다.':'닉네임 변경을 허락했습니다.'}catch(e){status.textContent='변경 실패: Firebase 보안 규칙을 확인해 주세요.';console.error(e)}finally{btn.disabled=false}});row.append(info,btn);list.append(row)})},e=>{status.textContent='계정 목록을 읽지 못했습니다. Firebase 규칙을 확인해 주세요.';console.error(e)})})})()</script></body></html>
+<!DOCTYPE html>
+<html lang="ko">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>닉네임 변경 허락 관리</title><style>
+* { box-sizing: border-box; }
+body {margin:0;padding:24px 12px;background:#fff;color:#222;font-family:Arial,"Malgun Gothic",sans-serif}
+.card {max-width:760px;margin:auto;border:1px solid #ddd;border-radius:10px;padding:20px}
+h1 {font-size:22px}
+button {background:#0047A0;color:#fff;border:0;border-radius:6px;padding:10px 14px;font-weight:bold;cursor:pointer}
+button:disabled {opacity:.5;cursor:not-allowed}
+.row {display:flex;gap:8px;align-items:center;justify-content:space-between;border:1px solid #ddd;border-radius:8px;padding:10px;margin:8px 0;overflow-wrap:anywhere}
+.row > div {min-width:0}
+.row button {flex:0 0 auto;white-space:nowrap;padding:8px 12px}
+.small {font-size:12px;color:#555}
+.status {margin:12px 0;font-weight:bold}
+a {color:#0047A0}
+</style></head>
+<body><main class="card"><h1>닉네임 변경 허락 관리</h1><p>채널주 전용 페이지입니다. 계정별로 변경 허락을 켜거나 끌 수 있습니다.</p><p><a href="index.html">초대장 화면으로 돌아가기</a></p><div id="status" class="status">로그인 상태 확인 중...</div><div id="list"></div></main>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script>
+(() => {
+  const config = {
+    apiKey: "AIzaSyD--yv8AalcVp53ioeS38TukEgSiSDaKhM",
+    authDomain: "kkiri-mal.firebaseapp.com",
+    databaseURL: "https://kkiri-mal-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "kkiri-mal",
+    storageBucket: "kkiri-mal.firebasestorage.app",
+    messagingSenderId: "796572177173",
+    appId: "1:796572177173:web:f3fc3638bb65439fba4f1c"
+  };
+
+  const OWNER = 'dkREk51h4EgdpovjsGDXJbd5KE73';
+  firebase.initializeApp(config);
+
+  const auth = firebase.auth();
+  const db = firebase.database();
+  const status = document.getElementById('status');
+  const list = document.getElementById('list');
+  let ref = null;
+
+  auth.onAuthStateChanged(user => {
+    if (ref) ref.off();
+    list.replaceChildren();
+
+    if (!user) {
+      status.textContent = '로그인이 필요합니다. index.html에서 로그인한 뒤 다시 열어 주세요.';
+      return;
+    }
+
+    if (user.uid !== OWNER) {
+      status.textContent = '접근 권한이 없습니다. 채널주 계정으로 로그인해 주세요.';
+      return;
+    }
+
+    status.textContent = '채널주로 로그인됨';
+    ref = db.ref('profiles');
+
+    ref.on('value', snap => {
+      list.replaceChildren();
+      const profiles = snap.val() || {};
+      const entries = Object.entries(profiles).filter(
+        ([uid, profile]) => uid !== OWNER && profile && profile.nickname
+      );
+
+      if (!entries.length) {
+        list.textContent = '등록된 닉네임이 없습니다.';
+        return;
+      }
+
+      entries.sort((a, b) => a[1].nickname.localeCompare(b[1].nickname, 'ko'));
+
+      entries.forEach(([uid, profile]) => {
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const info = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = profile.nickname;
+
+        const meta = document.createElement('div');
+        meta.className = 'small';
+        meta.textContent = 'UID: ' + uid.slice(0, 3);
+        meta.title = '전체 UID: ' + uid;
+        info.append(name, meta);
+
+        const btn = document.createElement('button');
+        btn.textContent = profile.changeAllowed ? '취소' : '허락';
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await db.ref('profiles/' + uid + '/changeAllowed').set(!profile.changeAllowed);
+            status.textContent = profile.changeAllowed
+              ? '변경 허락을 껐습니다.'
+              : '닉네임 변경을 허락했습니다.';
+          } catch (error) {
+            status.textContent = '변경 실패: Firebase 보안 규칙을 확인해 주세요.';
+            console.error(error);
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        row.append(info, btn);
+        list.append(row);
+      });
+    }, error => {
+      status.textContent = '계정 목록을 읽지 못했습니다. Firebase 규칙을 확인해 주세요.';
+      console.error(error);
+    });
+  });
+})();
+</body>
+</html>
