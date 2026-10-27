@@ -345,7 +345,14 @@ auth.onAuthStateChanged(user => {
   loginPanel.hidden = true;
   logoutButton.hidden = false;
   logoutButton.disabled = false;
-  authStatus.textContent = '로그인됨: ' + (user.email || '계정');
+  
+const accountLabels = {
+  'dkREk51h4EgdpovjsGDXJbd5KE73': 'A1',
+  'n0XSfsQnS0QLBmBiqvrYVoky55S2': '2'
+};
+
+const accountLabel = accountLabels[user.uid] || '미등록';
+authStatus.textContent = '로그인됨 · ' + accountLabel;
 
   legacyRef = db.ref('shared/history');
   postsRef = db.ref('shared/posts');
