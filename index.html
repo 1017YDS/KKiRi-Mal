@@ -28,6 +28,8 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
 .empty{padding:18px 8px;border:1.5px dashed #64748B;border-radius:6px;font-size:13px;color:#475569;text-align:center}
 .status{margin-top:10px;min-height:18px;font-size:13px;font-weight:700;text-align:left;overflow-wrap:anywhere}
 .note{font-size:11px;line-height:1.5;color:#475569;margin:14px 0 0;text-align:left}
+.nickname-panel{margin:0 0 18px;text-align:left}
+.nickname-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -48,6 +50,16 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
   <button class="btn" id="logout" type="button" hidden>로그아웃</button>
   <div class="status" id="authStatus" role="status" aria-live="polite">대화 기록을 불러오려면 로그인하세요.</div>
 </div>
+
+<section id="nicknamePanel" class="nickname-panel" hidden>
+  <label class="label" for="nickname">사용할 닉네임</label>
+  <div class="nickname-row">
+    <input id="nickname" type="text" maxlength="5" placeholder="한글 3~5글자" autocomplete="off" style="min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;min-width:0">
+    <button class="btn" id="saveNickname" type="button">닉네임 저장</button>
+  </div>
+  <p class="hint">한글 3~5글자만 사용할 수 있습니다. 숫자, 영어, 띄어쓰기, 특수문자는 사용할 수 없습니다.</p>
+  <div class="status" id="nicknameStatus" role="status" aria-live="polite"></div>
+</section>
 
 <label class="label" for="msg">초대 문구</label>
 <input id="msg" type="text" maxlength="100" placeholder="초대하고 싶은 말을 입력하세요" autocomplete="off">
@@ -100,8 +112,13 @@ const authStatus = $('authStatus');
 const loginButton = $('login');
 const logoutButton = $('logout');
 const registerButton = $('register');
+const nicknamePanel = $('nicknamePanel');
+const nicknameInput = $('nickname');
+const nicknameStatus = $('nicknameStatus');
+const saveNicknameButton = $('saveNickname');
 
 let currentUser = null;
+let currentNickname = '';
 let legacyRef = null;
 let postsRef = null;
 let legacyListener = null;
@@ -162,7 +179,7 @@ function getAllItems() {
     id: String(item.id),
     text: String(item.text || ''),
     uid: typeof item.uid === 'string' ? item.uid : '',
-    date: typeof item.date === 'string' ? item.date : '',
+    authorName: typeof item.authorName === 'string' ? item.authorName : '',
     kind: 'legacy'
   }));
 
@@ -170,7 +187,7 @@ function getAllItems() {
     id: String(item.id),
     text: String(item.text || ''),
     uid: typeof item.uid === 'string' ? item.uid : '',
-    date: typeof item.date === 'string' ? item.date : '',
+    authorName: typeof item.authorName === 'string' ? item.authorName : '',
     kind: 'post'
   }));
 
@@ -213,13 +230,8 @@ function render() {
     const meta = document.createElement('div');
     meta.className = 'item-meta';
 
-    if (item.kind === 'legacy') {
-      meta.textContent = '기존 기록' + (item.uid ? ' · 작성자 정보 있음' : ' · 작성자 미확인');
-    } else if (item.uid === currentUser?.uid) {
-      meta.textContent = '내가 작성한 글';
-    } else {
-      meta.textContent = '다른 사용자가 작성한 글';
-    }
+    const author = item.authorName || '작성자 미확인';
+    meta.textContent = author + '이 작성한 글';
 
     content.append(meta);
 
@@ -320,7 +332,7 @@ logoutButton.addEventListener('click', async () => {
   }
 });
 
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
   authGeneration++;
   const generation = authGeneration;
 
@@ -332,6 +344,8 @@ auth.onAuthStateChanged(user => {
 
   if (!user) {
     loginPanel.hidden = false;
+    nicknamePanel.hidden = true;
+    currentNickname = '';
     email.disabled = false;
     password.disabled = false;
     loginButton.hidden = false;
@@ -395,7 +409,7 @@ authStatus.textContent = '로그인됨 · ' + accountLabel;
         id,
         text: item.text,
         uid: item.uid,
-        date: typeof item.date === 'string' ? item.date : ''
+        authorName: typeof item.authorName === 'string' ? item.authorName : ''
       }));
 
     render();
@@ -423,6 +437,11 @@ async function register() {
 
   if (!currentUser) {
     status.textContent = '먼저 로그인해 주세요.';
+    return;
+  }
+  if (!currentNickname) {
+    status.textContent = '먼저 한글 3~5글자 닉네임을 저장해 주세요.';
+    nicknameInput.focus();
     return;
   }
   if (!text) {
@@ -456,7 +475,7 @@ async function register() {
       id,
       text,
       uid: user.uid,
-      date: new Date().toISOString()
+      authorName: currentNickname
     };
 
     await db.ref('shared/posts/' + id).set(item);
@@ -500,6 +519,39 @@ async function deleteOne(item) {
     status.textContent = '초대 문구를 삭제했습니다.';
   });
 }
+
+async function saveNickname() {
+  if (!currentUser) {
+    nicknameStatus.textContent = '먼저 로그인해 주세요.';
+    return;
+  }
+  const nickname = nicknameInput.value;
+  if (!/^[가-힣]{3,5}$/u.test(nickname)) {
+    nicknameStatus.textContent = '닉네임은 띄어쓰기 없이 한글 3~5글자로 입력해 주세요.';
+    nicknameInput.focus();
+    return;
+  }
+  saveNicknameButton.disabled = true;
+  nicknameStatus.textContent = '닉네임 저장 중...';
+  try {
+    const user = currentUser;
+    await db.ref('profiles/' + user.uid + '/nickname').set(nickname);
+    if (!currentUser || currentUser.uid !== user.uid) return;
+    currentNickname = nickname;
+    authStatus.textContent = '로그인됨 · ' + nickname;
+    nicknameStatus.textContent = '닉네임이 저장되었습니다.';
+  } catch (error) {
+    nicknameStatus.textContent = '닉네임 저장에 실패했습니다. Firebase 규칙을 확인해 주세요.';
+    console.error('닉네임 저장 오류:', error);
+  } finally {
+    saveNicknameButton.disabled = false;
+  }
+}
+
+saveNicknameButton.addEventListener('click', saveNickname);
+nicknameInput.addEventListener('keydown', event => {
+  if (event.key === 'Enter') saveNickname();
+});
 
 registerButton.addEventListener('click', register);
 
