@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -268,7 +267,12 @@ async function runWrite(task) {
     setBusy(false);
   }
 }
-
+password.addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    loginButton.click();
+  }
+});
 loginButton.addEventListener('click', async () => {
   const mail = email.value.trim();
   const pass = password.value;
