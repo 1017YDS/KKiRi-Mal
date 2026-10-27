@@ -55,7 +55,7 @@ h2{font-size:17px;font-weight:800;margin:24px 0 10px;text-align:left}
   <label class="label" for="nickname">사용할 닉네임</label>
   <div class="nickname-row">
     <input id="nickname" type="text" maxlength="5" placeholder="한글 3~5글자" autocomplete="off" style="min-height:42px;padding:9px;border:2px solid #1E293B;border-radius:6px;font:inherit;min-width:0">
-    <button class="btn" id="saveNickname" type="button">닉네임 저장</button>
+    <button class="btn" id="saveNickname" type="button">등록</button>
   </div>
   <p class="hint">한글 3~5글자만 사용할 수 있습니다. <br>숫자, 영어, 띄어쓰기, 특수문자는 사용할 수 없습니다.</br></p>
   <div class="status" id="nicknameStatus" role="status" aria-live="polite"></div>
@@ -346,6 +346,9 @@ auth.onAuthStateChanged(async user => {
     loginPanel.hidden = false;
     nicknamePanel.hidden = true;
     currentNickname = '';
+    nicknameInput.disabled = false;
+    saveNicknameButton.hidden = false;
+    saveNicknameButton.disabled = false;
     email.disabled = false;
     password.disabled = false;
     loginButton.hidden = false;
@@ -364,6 +367,8 @@ auth.onAuthStateChanged(async user => {
   if (user.uid === OWNER_UID) {
     currentNickname = '대장';
     nicknameInput.value = '';
+    nicknameInput.disabled = true;
+    saveNicknameButton.hidden = true;
     nicknameStatus.textContent = '';
     authStatus.textContent = '로그인됨 · 대장';
   }
@@ -379,12 +384,17 @@ auth.onAuthStateChanged(async user => {
       if (typeof savedNickname === 'string' && /^[가-힣]{3,5}$/u.test(savedNickname)) {
         currentNickname = savedNickname;
         nicknameInput.value = savedNickname;
-        nicknameStatus.textContent = '저장된 닉네임: ' + savedNickname + ' (변경할 수 있습니다.)';
+        nicknameInput.disabled = true;
+        saveNicknameButton.hidden = true;
+        nicknamePanel.hidden = true;
+        nicknameStatus.textContent = '';
         authStatus.textContent = '로그인됨 · ' + savedNickname;
       } else {
         currentNickname = '';
         nicknameInput.value = '';
-        authStatus.textContent = '로그인됨 · 닉네임 설정 필요';
+        nicknameInput.disabled = false;
+        saveNicknameButton.hidden = false;
+        authStatus.textContent = '로그인됨 · 닉네임 등록 필요';
       }
     } catch (error) {
       nicknameStatus.textContent = '닉네임을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
@@ -561,19 +571,30 @@ async function saveNickname() {
     return;
   }
   saveNicknameButton.disabled = true;
-  nicknameStatus.textContent = '닉네임 저장 중...';
+  nicknameStatus.textContent = '닉네임 등록 중...';
   try {
     const user = currentUser;
-    await db.ref('profiles/' + user.uid + '/nickname').set(nickname);
+    const nicknameRef = db.ref('profiles/' + user.uid + '/nickname');
+    const existing = await nicknameRef.once('value');
+    if (existing.exists()) {
+      nicknameStatus.textContent = '이미 등록된 닉네임은 변경할 수 없습니다.';
+      nicknameInput.value = String(existing.val());
+      nicknameInput.disabled = true;
+      saveNicknameButton.hidden = true;
+      return;
+    }
+    await nicknameRef.set(nickname);
     if (!currentUser || currentUser.uid !== user.uid) return;
     currentNickname = nickname;
     authStatus.textContent = '로그인됨 · ' + nickname;
-    nicknameStatus.textContent = '닉네임이 저장되었습니다.';
+    nicknameInput.disabled = true;
+    saveNicknameButton.hidden = true;
+    nicknamePanel.hidden = true;
   } catch (error) {
     nicknameStatus.textContent = '닉네임 저장에 실패했습니다. Firebase 규칙을 확인해 주세요.';
     console.error('닉네임 저장 오류:', error);
   } finally {
-    saveNicknameButton.disabled = false;
+    if (!currentNickname) saveNicknameButton.disabled = false;
   }
 }
 
