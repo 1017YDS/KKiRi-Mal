@@ -231,7 +231,7 @@ function render() {
     meta.className = 'item-meta';
 
     const author = item.authorName || '작성자 미확인';
-    meta.textContent = author + '이 작성한 글';
+    meta.textContent = author;
 
     content.append(meta);
 
@@ -357,37 +357,40 @@ auth.onAuthStateChanged(async user => {
   }
 
   loginPanel.hidden = true;
-  nicknamePanel.hidden = false;
+  nicknamePanel.hidden = user.uid === OWNER_UID;
   logoutButton.hidden = false;
+
+  // 주인장은 별도 닉네임 설정 없이 '대장'으로 표시합니다.
+  if (user.uid === OWNER_UID) {
+    currentNickname = '대장';
+    nicknameInput.value = '';
+    nicknameStatus.textContent = '';
+    authStatus.textContent = '로그인됨 · 대장';
+  }
   logoutButton.disabled = false;
 
-  // 로그인한 계정의 닉네임을 불러옵니다. 아직 없으면 입력칸을 비워 둡니다.
-  nicknameStatus.textContent = '닉네임을 한글 3~5글자로 설정해 주세요.';
-  try {
-    const nicknameSnapshot = await db.ref('profiles/' + user.uid + '/nickname').once('value');
-    if (generation !== authGeneration || !currentUser || currentUser.uid !== user.uid) return;
-    const savedNickname = nicknameSnapshot.val();
-    if (typeof savedNickname === 'string' && /^[가-힣]{3,5}$/u.test(savedNickname)) {
-      currentNickname = savedNickname;
-      nicknameInput.value = savedNickname;
-      nicknameStatus.textContent = '저장된 닉네임: ' + savedNickname + ' (변경할 수 있습니다.)';
-      authStatus.textContent = '로그인됨 · ' + savedNickname;
-    } else {
-      currentNickname = '';
-      nicknameInput.value = '';
+  if (user.uid !== OWNER_UID) {
+    // 일반 계정만 닉네임을 불러오거나 설정합니다.
+    nicknameStatus.textContent = '닉네임을 한글 3~5글자로 설정해 주세요.';
+    try {
+      const nicknameSnapshot = await db.ref('profiles/' + user.uid + '/nickname').once('value');
+      if (generation !== authGeneration || !currentUser || currentUser.uid !== user.uid) return;
+      const savedNickname = nicknameSnapshot.val();
+      if (typeof savedNickname === 'string' && /^[가-힣]{3,5}$/u.test(savedNickname)) {
+        currentNickname = savedNickname;
+        nicknameInput.value = savedNickname;
+        nicknameStatus.textContent = '저장된 닉네임: ' + savedNickname + ' (변경할 수 있습니다.)';
+        authStatus.textContent = '로그인됨 · ' + savedNickname;
+      } else {
+        currentNickname = '';
+        nicknameInput.value = '';
+        authStatus.textContent = '로그인됨 · 닉네임 설정 필요';
+      }
+    } catch (error) {
+      nicknameStatus.textContent = '닉네임을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
+      console.error('닉네임 읽기 오류:', error);
     }
-  } catch (error) {
-    nicknameStatus.textContent = '닉네임을 불러오지 못했습니다. Firebase 규칙을 확인해 주세요.';
-    console.error('닉네임 읽기 오류:', error);
   }
-  
-const accountLabels = {
-  'dkREk51h4EgdpovjsGDXJbd5KE73': '대장',
-  'n0XSfsQnS0QLBmBiqvrYVoky55S2': '2'
-};
-
-const accountLabel = accountLabels[user.uid] || '미등록';
-authStatus.textContent = '로그인됨 · ' + accountLabel;
 
   legacyRef = db.ref('shared/history');
   postsRef = db.ref('shared/posts');
@@ -544,6 +547,11 @@ async function deleteOne(item) {
 async function saveNickname() {
   if (!currentUser) {
     nicknameStatus.textContent = '먼저 로그인해 주세요.';
+    return;
+  }
+  if (currentUser.uid === OWNER_UID) {
+    currentNickname = '대장';
+    nicknameStatus.textContent = '주인장은 닉네임 설정이 필요하지 않습니다.';
     return;
   }
   const nickname = nicknameInput.value;
