@@ -188,10 +188,12 @@ function getAllItems() {
     text: String(item.text || ''),
     uid: typeof item.uid === 'string' ? item.uid : '',
     authorName: typeof item.authorName === 'string' ? item.authorName : '',
+    sentAt: Number.isFinite(Number(item.sentAt)) ? Number(item.sentAt) : 0,
     kind: 'post'
   }));
 
-  // 새 글을 먼저 표시합니다.
+  // 화면에는 시간을 표시하지 않고, 내부 전송 시각으로 최신순 정렬합니다.
+  posts.sort((a, b) => b.sentAt - a.sentAt);
   return [...posts, ...legacy];
 }
 
@@ -456,7 +458,8 @@ auth.onAuthStateChanged(async user => {
         id,
         text: item.text,
         uid: item.uid,
-        authorName: typeof item.authorName === 'string' ? item.authorName : ''
+        authorName: typeof item.authorName === 'string' ? item.authorName : '',
+        sentAt: Number.isFinite(Number(item.sentAt)) ? Number(item.sentAt) : 0
       }));
 
     render();
@@ -522,7 +525,8 @@ async function register() {
       id,
       text,
       uid: user.uid,
-      authorName: currentNickname
+      authorName: currentNickname,
+      sentAt: Date.now()
     };
 
     await db.ref('shared/posts/' + id).set(item);
